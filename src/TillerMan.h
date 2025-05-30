@@ -9,7 +9,7 @@
 class TillerMan {
 public:
         enum ControlStatus {
-        STANDBY,
+        READY,
         SERVER_CMD, 
         HOLD_AWA,
         TACK_START_KEYS_SB,
@@ -19,14 +19,19 @@ public:
         TURN_WAIT
     };
 
+    struct __attribute__((packed)) OpMode {
+        bool StdbyActive;
+        bool Switch_ON;
+    }; 
+    
     struct __attribute__((packed)) TillerMgmt {
-        char  kennung;
-        bool Stdby;
-        short courseChange;
-        short courseCorr;
-        short AWAsoll;
-        short AWAdelta; 
-        short AWAmove;
+        char            kennung;
+        OpMode          OperationMode;
+        short           courseChange;
+        short           courseCorr;
+        short           AWAsoll;
+        short           AWAdelta; 
+        short           AWAmove;
     };
 
     struct CorrectParams {
@@ -34,6 +39,8 @@ public:
         int16_t angle;
         uint16_t waitmillis;
     };
+
+    MyIoPort* powerSig;
 
     TillerMgmt tillerMgmt;
     
@@ -54,7 +61,7 @@ public:
 private:
 
     MyBleClient::ServerData mServerData;
-    bool serverDataFlag = false;
+    bool ServerDataReceived = false;
     InputParser::UserInput mUserInput;
     bool userInputFlag = false;
 
@@ -67,7 +74,7 @@ private:
     void loopStart();
     void loopEnd();
     short angleAdd(short origin, short adder);
-    ControlStatus mainControlStatus = STANDBY;
+    ControlStatus mainControlStatus = READY;
     
 
     volatile short AWAalt, AWAdeltaAlt, AWAimpact;

@@ -1,7 +1,11 @@
 #include "TillerMan.h"
 
+
+
+
 TillerMan::TillerMan(InputParser* parser)
 {
+    powerSig = new MyIoPort(POWERSIG, INPUT_PULLDOWN, 0, 1);
     inputParser = parser;
     tillerManInstance = this;
     memset(&tillerMgmt, 0, sizeof(tillerMgmt));
@@ -16,7 +20,7 @@ void TillerMan::manageUserInputStandby(InputParser::UserInput input)
         Serial.println("ACTIVE");
         inputParser->mBleClient->sendMessage("ACTIVE");
         tillerMgmt.AWAsoll = mServerData.AWA;
-        tillerMgmt.Stdby = StdbyWatch::ACTIVE;
+        tillerMgmt.OperationMode.StdbyActive = true;
         tillerMgmt.courseChange = 0;
         mainControlStatus = HOLD_AWA;
     }
@@ -24,74 +28,72 @@ void TillerMan::manageUserInputStandby(InputParser::UserInput input)
 
 void TillerMan::manageUserInputActive(InputParser::UserInput input)
 {
-    if(tillerMgmt.Stdby == StdbyWatch::ACTIVE)
-    {
-        switch (input) {
-            case InputParser::NO_USER_INPUT: {
-                break;
-            }
-            case InputParser::KEY_1GRAD_SB: {
-                Serial.println("1 Grad SB");
-                inputParser->mBleClient->sendMessage("1 Grad SB");
-                tillerMgmt.AWAsoll = (tillerMgmt.AWAsoll + 1) % 360;
-                tillerMgmt.courseChange = 1;
-                mainControlStatus = TURN_WAIT;
-                break;
-            }
-            case InputParser::KEY_1GRAD_BB: {
-                Serial.println("1 Grad BB");
-                inputParser->mBleClient->sendMessage("1 Grad BB");
-                tillerMgmt.AWAsoll = (tillerMgmt.AWAsoll + 359) % 360;
-                tillerMgmt.courseChange = -1;
-                mainControlStatus = TURN_WAIT;
-                break;
-            }
-            case InputParser::KEY_10GRAD_SB: {
-                Serial.println("10 Grad SB");
-                inputParser->mBleClient->sendMessage("10 Grad SB");
-                tillerMgmt.AWAsoll = (tillerMgmt.AWAsoll + 10) % 360;
-                mainControlStatus = TURN_WAIT;
-                tillerMgmt.courseChange = 10;
-                break;
-            }
-            case InputParser::KEY_10GRAD_BB: {
-                Serial.println("10 Grad BB");
-                inputParser->mBleClient->sendMessage("10 Grad BB");
-                tillerMgmt.AWAsoll = (tillerMgmt.AWAsoll + 350) % 360;
-                mainControlStatus = TURN_WAIT;
-                tillerMgmt.courseChange = -10;
-                break;
-            }
-            case InputParser::KEY_TACK_SB: {
-                Serial.println("Tack SB");
-                inputParser->mBleClient->sendMessage("Tack SB");
-                mainControlStatus = TACK_START_KEYS_SB;
-                break;
-            }
-            case InputParser::KEY_TACK_BB: {
-                Serial.println("Tack BB");
-                inputParser->mBleClient->sendMessage("Tack BB");
-                mainControlStatus = TACK_START_KEYS_BB;
-                break;
-            }
-            case InputParser::KEY_STDBY_STDBY: {
-                // Serial.println("STANDBY");
-                inputParser->mBleClient->sendMessage("STANDBY");
-                tillerMgmt.courseChange = 0;
-                tillerMgmt.Stdby = StdbyWatch::STANDBY;
-                mainControlStatus = STANDBY;
-                break;
-            }
-            default:
-                break;
+    switch (input) {
+        case InputParser::NO_USER_INPUT: {
+            break;
         }
+        case InputParser::KEY_1GRAD_SB: {
+            Serial.println("1 Grad SB");
+            inputParser->mBleClient->sendMessage("1 Grad SB");
+            tillerMgmt.AWAsoll = (tillerMgmt.AWAsoll + 1) % 360;
+            tillerMgmt.courseChange = 1;
+            mainControlStatus = TURN_WAIT;
+            break;
+        }
+        case InputParser::KEY_1GRAD_BB: {
+            Serial.println("1 Grad BB");
+            inputParser->mBleClient->sendMessage("1 Grad BB");
+            tillerMgmt.AWAsoll = (tillerMgmt.AWAsoll + 359) % 360;
+            tillerMgmt.courseChange = -1;
+            mainControlStatus = TURN_WAIT;
+            break;
+        }
+        case InputParser::KEY_10GRAD_SB: {
+            Serial.println("10 Grad SB");
+            inputParser->mBleClient->sendMessage("10 Grad SB");
+            tillerMgmt.AWAsoll = (tillerMgmt.AWAsoll + 10) % 360;
+            mainControlStatus = TURN_WAIT;
+            tillerMgmt.courseChange = 10;
+            break;
+        }
+        case InputParser::KEY_10GRAD_BB: {
+            Serial.println("10 Grad BB");
+            inputParser->mBleClient->sendMessage("10 Grad BB");
+            tillerMgmt.AWAsoll = (tillerMgmt.AWAsoll + 350) % 360;
+            mainControlStatus = TURN_WAIT;
+            tillerMgmt.courseChange = -10;
+            break;
+        }
+        case InputParser::KEY_TACK_SB: {
+            Serial.println("Tack SB");
+            inputParser->mBleClient->sendMessage("Tack SB");
+            mainControlStatus = TACK_START_KEYS_SB;
+            break;
+        }
+        case InputParser::KEY_TACK_BB: {
+            Serial.println("Tack BB");
+            inputParser->mBleClient->sendMessage("Tack BB");
+            mainControlStatus = TACK_START_KEYS_BB;
+            break;
+        }
+        case InputParser::KEY_STDBY_STDBY: {
+            // Serial.println("STANDBY");
+            inputParser->mBleClient->sendMessage("STANDBY");
+            tillerMgmt.courseChange = 0;
+            tillerMgmt.OperationMode.StdbyActive = false;
+            mainControlStatus = READY;
+            break;
+        }
+        default:
+            break;
     }
+    
 }
 
 void TillerMan::setServerData(MyBleClient::ServerData serverData)
 {
     mServerData = serverData;
-    serverDataFlag = true;
+    ServerDataReceived = true;
 }
 
 void TillerMan::setUserInput(InputParser::UserInput userInput)
@@ -101,29 +103,42 @@ void TillerMan::setUserInput(InputParser::UserInput userInput)
 }
 
 void TillerMan::mainLoop()
-{
-    if (userInputFlag == true)
-    {
-        loopStart();
-        if (tillerMgmt.Stdby == StdbyWatch::ACTIVE)
-            manageUserInputActive(mUserInput);
-            else
-            manageUserInputStandby(mUserInput);
-        userInputFlag = false;
-        loopEnd();
+{   
+
+    loopStart(); 
+
+    if (tillerMgmt.OperationMode.Switch_ON == true)     // nur wenn TillerMan eingeschaltet ist
+    {   
+            if (ServerDataReceived == true)
+            {
+                manageServerData(mServerData);
+                ServerDataReceived = false;
+            }
+ 
     }
 
-    if (serverDataFlag == true)
+    if ((userInputFlag == true)) // Tasterfeld im Standby-Modus
     {
-        loopStart();
-        manageServerData(mServerData);
-        serverDataFlag = false;
-        loopEnd();
+        if (tillerMgmt.OperationMode.StdbyActive == true)
+        {
+            manageUserInputActive(mUserInput);
+        }
+        else
+        {
+            // inputParser->mBleClient->sendMessage("User Input, check STANDBY");
+            manageUserInputStandby(mUserInput);
+            userInputFlag = false;
+        }
+        userInputFlag = false;
     }
+
+    loopEnd();
 }
 
 void TillerMan::loopStart()
 {
+    // Schauen, ob TillerMan überhaupt eingeschaltet ist
+    tillerMgmt.OperationMode.Switch_ON = powerSig->read();
     // Variablen zum Jonglieren berechnen
     short zwischenErgebnis;
     // Änderung seit dem letzten Durchlauf
@@ -153,7 +168,8 @@ void TillerMan::manageServerCmd(MyBleClient::ServerData serverData)
 {
     if (serverData.courseChange == 0)
         return;                 // nothing to do
-
+    
+    inputParser->mBleClient->sendMessage("ServerCMD received");
     mainControlStatus = SERVER_CMD;
 }
 
@@ -166,7 +182,7 @@ void TillerMan::manageServerData(MyBleClient::ServerData serverData)
 
     switch (mainControlStatus) 
     {
-        case STANDBY:
+        case READY:
         {
             // do nothing
             break;
@@ -179,8 +195,12 @@ void TillerMan::manageServerData(MyBleClient::ServerData serverData)
             Serial.println(serverData.awsChange); 
             tillerMgmt.AWAsoll = serverData.awsChange;
             tillerMgmt.courseChange = serverData.courseChange;
+            // inputParser->mBleClient->sendMessage("ServerCMD");
             correctActive(serverData.courseChange, serverData.awsChange);
-            mainControlStatus = TURN_WAIT;
+            if (tillerMgmt.OperationMode.StdbyActive == true)
+                mainControlStatus = TURN_WAIT;
+            else
+                mainControlStatus = READY;  // auf neue Anweisungen warten
             break;
         }
         case HOLD_AWA:

@@ -83,7 +83,7 @@ class MyBleClient {
         BLERemoteCharacteristic *pRemoteCharacteristic;
 
         MyIoPort* indicatorLed;
-        MyIoPort* powerSig;
+
 
         static void bleCallbackTask(void* arguments);
         void initBLE();

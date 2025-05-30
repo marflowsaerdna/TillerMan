@@ -34,6 +34,7 @@ void onNewBleData(uint8_t *pData)        // Callback für neue BLE Daten, wird a
 
     if ((serverData.MsgCounter - msgCount) > 1)
     {
+        bleClient->sendMessage("Daten verloren !");
         Serial.println("Daten wurden verloren !");
     }
     msgCount = serverData.MsgCounter;

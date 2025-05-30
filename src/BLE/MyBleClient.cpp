@@ -16,7 +16,6 @@ MyBleClient::MyBleClient(CallbackFunctionStatic callback)
 
     // Indicator LED
     indicatorLed = new MyIoPort(ACTIVE_LED, OUTPUT, HIGH, LOW);
-    powerSig = new MyIoPort(POWERSIG, INPUT_PULLDOWN, 0, 1);
     instance = this;
     connStatus = INIT;
 
@@ -43,12 +42,11 @@ void MyBleClient::resetTimeout(void)
 
 void MyBleClient::loop()
 {
-    if (powerSig->read() == 0)
+    if (connStatus != DATA_TRANSFER)
     {
         indicatorLed->pulse(1000);
         delay(1000);
-        Serial.println("Powersig off");
-        return;
+        Serial.println("No Connection");
     }
     if (connStatus == CRASH)
     {
