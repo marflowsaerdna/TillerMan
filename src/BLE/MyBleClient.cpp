@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "MyBleClient.h"
+#include "ServerDataFifo.h"
 #include "hw_def.h"
 
 static BLEUUID serviceUUID("00001810-0000-1000-8000-00805F9B34FB"); // Ersetze mit der Service-UUID
@@ -9,13 +10,9 @@ static bool doSomething = false;
 
 MyBleClient* MyBleClient::instance = nullptr;
 
-MyBleClient::MyBleClient(CallbackFunctionStatic callback)
+MyBleClient::MyBleClient()
 { 
-    // callbackfunktion aus main speichern
-    mainCallback = callback;
 
-    // Indicator LED
-    indicatorLed = new MyIoPort(ACTIVE_LED, OUTPUT, HIGH, LOW);
     instance = this;
     connStatus = INIT;
 
@@ -44,7 +41,7 @@ void MyBleClient::loop()
 {
     if (connStatus != DATA_TRANSFER)
     {
-        indicatorLed->pulse(1000);
+
         delay(1000);
         Serial.println("No Connection");
     }
@@ -140,35 +137,16 @@ void MyBleClient::deviceFound(BLEAdvertisedDevice advertisedDevice)
         myDevice = nullptr;
     }
 }
+
 void MyBleClient::dataNotifyStatic(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
+    // Serial.println("Daten empfangen!");
     if (instance) {
-        instance->dataNotify(pBLERemoteCharacteristic, pData, length, isNotify);
-    }
-}
-
-
-
-void MyBleClient::dataNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
-{   
-    instance->indicatorLed->pulse(200);
-    memcpy(dataByteBuffer, pData, length); // Daten kopieren
-    instance->resetTimeout();
-    instance->mainCallback(instance->dataByteBuffer);
-    instance->connStatus = DATA_TRANSFER;
-    // xTaskCreate(instance->bleCallbackTask, "BleCallback", 4096, (void *) instance, 1, &instance->bleTaskHandle);
-}
-
-// **Task-Funktion (darf nicht blockieren)**
-void MyBleClient::bleCallbackTask(void *pvParameters) {
-    MyBleClient* instance = static_cast<MyBleClient*>(pvParameters);
-    if (instance)
-    {   
-
-
         instance->resetTimeout();
+        bool returnwert = ServerDataFifo::getInstance().set(*pData); // Daten in FIFO speichern
+
+        instance->connStatus = DATA_TRANSFER;
     }
-    vTaskDelete(NULL);
 }
 
 void MyBleClient::startScan()
@@ -230,6 +208,7 @@ void MyBleClient::connectToServer()
             connStatus = CONNECTED;
         }  
         else{
+            Serial.println("Verbinde mit Gerät...");
             if (!pClient->connect(myDevice))
             {
                 Serial.println("❌ Verbindung fehlgeschlagen!");
@@ -283,6 +262,7 @@ void MyBleClient::startCommunication()
         return;
     }
 
+    /*
     BLERemoteDescriptor *p2902 = pRemoteCharacteristic->getDescriptor(BLEUUID("00002902-0000-1000-8000-00805f9b34fb"));
     if (p2902 != nullptr)
     {
@@ -294,7 +274,7 @@ void MyBleClient::startCommunication()
     {
         Serial.println("❌ Kein CCCD-Descriptor gefunden!");
     }
-
+    */
     if (pRemoteCharacteristic->canNotify())
     {
         Serial.println("✅ Charakteristik unterstützt notify, register callback!");

@@ -34,7 +34,7 @@ class MyBleClient {
         struct __attribute__((packed)) ServerData {
             short MsgCounter;
             short courseChange;
-            short awsChange;
+            short AWAsoll;
             short AWA; 
             short TWA;
             short tackAngle;
@@ -42,7 +42,7 @@ class MyBleClient {
 
         ServerData serverData;
 
-        #define BLE_TIMEOUT 5000           // 5s
+        #define BLE_TIMEOUT 10000           // 10s
 
         static MyBleClient* instance;
         static boolean led_state;
@@ -53,12 +53,11 @@ class MyBleClient {
 
         typedef void (*CallbackFunctionStatic)(uint8_t *pData); // Definiere den Typ für den Funktionszeiger
 
-        MyBleClient(CallbackFunctionStatic fct);
+        MyBleClient();
         void sendMessage(String message);
         void sendData(uint8_t *pData, int length);
         static void loopTaskStatic(void *pvParameters);
         static void dataNotifyStatic(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);
-        void dataNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);
         static void deviceFoundStatic(BLEAdvertisedDevice advertisedDevice);
         void deviceFound(BLEAdvertisedDevice advertisedDevice);
         void begin();
@@ -82,10 +81,9 @@ class MyBleClient {
 
         BLERemoteCharacteristic *pRemoteCharacteristic;
 
-        MyIoPort* indicatorLed;
 
 
-        static void bleCallbackTask(void* arguments);
+
         void initBLE();
         void startScan();
         void connectToServer();

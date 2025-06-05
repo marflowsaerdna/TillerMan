@@ -1,5 +1,5 @@
 #include "TillerMan.h"
-
+#include "BLE/MyBleClient.h"
 
 
 
@@ -90,12 +90,6 @@ void TillerMan::manageUserInputActive(InputParser::UserInput input)
     
 }
 
-void TillerMan::setServerData(MyBleClient::ServerData serverData)
-{
-    mServerData = serverData;
-    ServerDataReceived = true;
-}
-
 void TillerMan::setUserInput(InputParser::UserInput userInput)
 {
     mUserInput = userInput;
@@ -106,15 +100,24 @@ void TillerMan::mainLoop()
 {   
 
     loopStart(); 
+    // ServerData serverData;
+    ServerDataReceived = ServerDataFifo::getInstance().getAsStruct(mServerData); // Hole die Serverdaten aus der FIFO
 
-    if (tillerMgmt.OperationMode.Switch_ON == true)     // nur wenn TillerMan eingeschaltet ist
+    if (ServerDataReceived == true)     // nur wenn TillerMan eingeschaltet ist
     {   
-            if (ServerDataReceived == true)
+        // Serial.println("TillerMan::mainLoop: ServerDataReceived");
+        ReceivedSomething = true;
+        ServerDataReceived = false;
+        if (tillerMgmt.OperationMode.Switch_ON == true)
+        {
+            if (mServerData.courseChange != 0)          // Server hat einen Kurswechsel angefordert
             {
-                manageServerData(mServerData);
-                ServerDataReceived = false;
+                inputParser->mBleClient->sendMessage("ServerCMD received");
+                mainControlStatus = SERVER_CMD;
             }
- 
+            manageServerData(mServerData); // Serverdaten verarbeiten
+        }
+
     }
 
     if ((userInputFlag == true)) // Tasterfeld im Standby-Modus
@@ -127,9 +130,18 @@ void TillerMan::mainLoop()
         {
             // inputParser->mBleClient->sendMessage("User Input, check STANDBY");
             manageUserInputStandby(mUserInput);
-            userInputFlag = false;
         }
+        ReceivedSomething = true;
         userInputFlag = false;
+    }
+    if (ReceivedSomething == true)
+    {
+        sendDataToBLE();
+        ReceivedSomething = false;
+    }   
+    else
+    {
+        delay(10);
     }
 
     loopEnd();
@@ -137,6 +149,7 @@ void TillerMan::mainLoop()
 
 void TillerMan::loopStart()
 {
+    // Serial.println("Loopstart");
     // Schauen, ob TillerMan überhaupt eingeschaltet ist
     tillerMgmt.OperationMode.Switch_ON = powerSig->read();
     // Variablen zum Jonglieren berechnen
@@ -155,7 +168,7 @@ void TillerMan::loopStart()
 
 void TillerMan::loopEnd()
 {
-    sendDataToBLE();
+
     // Variablen für den nächsten Durchlauf belegen
     tillerMgmt.courseChange = 0;
     tillerMgmt.courseCorr = 0;
@@ -164,21 +177,15 @@ void TillerMan::loopEnd()
 
 }
 
-void TillerMan::manageServerCmd(MyBleClient::ServerData serverData)
-{
-    if (serverData.courseChange == 0)
-        return;                 // nothing to do
-    
-    inputParser->mBleClient->sendMessage("ServerCMD received");
-    mainControlStatus = SERVER_CMD;
-}
-
-
-void TillerMan::manageServerData(MyBleClient::ServerData serverData)
+void TillerMan::manageServerData(ServerData serverData)
 {
 
     // Serial.printf("Heap: %d, Min: %d\n", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
-    manageServerCmd(serverData);
+
+        //    Serial.print("ServerCMD:  CCR:");
+        //    Serial.print(serverData.courseChange);  
+        //    Serial.print(":  AWS:");
+        //    Serial.println(serverData.AWAsoll); 
 
     switch (mainControlStatus) 
     {
@@ -192,11 +199,11 @@ void TillerMan::manageServerData(MyBleClient::ServerData serverData)
             Serial.print("ServerCMD:  CCR:");
             Serial.print(serverData.courseChange);  
             Serial.print(":  AWS:");
-            Serial.println(serverData.awsChange); 
-            tillerMgmt.AWAsoll = serverData.awsChange;
+            Serial.println(serverData.AWAsoll); 
+            tillerMgmt.AWAsoll = serverData.AWAsoll;
             tillerMgmt.courseChange = serverData.courseChange;
             // inputParser->mBleClient->sendMessage("ServerCMD");
-            correctActive(serverData.courseChange, serverData.awsChange);
+            correctActive(serverData.courseChange, serverData.AWAsoll);
             if (tillerMgmt.OperationMode.StdbyActive == true)
                 mainControlStatus = TURN_WAIT;
             else
@@ -318,6 +325,12 @@ void TillerMan::manageServerData(MyBleClient::ServerData serverData)
             }
             break;
         }
+        default:
+        {
+            Serial.println("Unbekannter Status");
+            mainControlStatus = READY;  // auf neue Anweisungen warten
+            break;
+        }
     }
 
 
@@ -345,7 +358,7 @@ void TillerMan::correctActive(int16_t angle, uint16_t waitmillis)
         params,         // Parameter
         1,              // Priorität
         NULL,           // Task-Handle (nicht benötigt)
-        0               // Core 0 (oder 1 für den zweiten Core)
+        1               // Core 0 (oder 1 für den zweiten Core)
     );
 }
 
@@ -391,7 +404,22 @@ void TillerMan::correctActiveTask(void *pvParameters)
 
 void TillerMan::sendDataToBLE()
 {
-    tillerMgmt.kennung = 'D';
+    tillerMgmt.kennung = 'D';  // Kennung für Tiller Management
+
+    /*
+    Serial.print(tillerMgmt.kennung);  
+    Serial.print(":  Cch:");
+    Serial.print(tillerMgmt.courseChange); 
+    Serial.print("  Cco:");
+    Serial.print(tillerMgmt.courseCorr);
+    Serial.print("  AWs:");
+    Serial.print(tillerMgmt.AWAsoll);
+    Serial.print("  AWd:");
+    Serial.print(tillerMgmt.AWAdelta);
+    Serial.print("  OpM:");
+    Serial.print(tillerMgmt.OperationMode.StdbyActive);
+    Serial.println(tillerMgmt.OperationMode.Switch_ON);
+
     /*
     tillerMgmt.cmd       = 0x0011; //      CMD;
     tillerMgmt.AWAsoll   = 0x2233; // AWAsoll;

@@ -1,6 +1,7 @@
 #include "hw_def.h"
 #include <Arduino.h>
 #include "BLE/MyBleClient.h"
+#include "BLE/ServerDataFifo.h"
 #include "UI/MyIoPort.h"
 #include "UI/StdbyWatch.h"
 #include "UI/InputParser.h"
@@ -18,6 +19,7 @@ extern "C" {
 MyBleClient* bleClient;
 InputParser* inputParser;
 TillerMan*   tillerMan;
+ServerDataFifo* serverDataFifo; // FIFO für Server-Daten, Größe 10
 // DebugOutput* debugOut;
 
 struct MyBleClient::ServerData  serverData;
@@ -26,46 +28,64 @@ MyIoPort* indicatorLed;
 short msgCount = 0;
 
 
-void onNewBleData(uint8_t *pData)        // Callback für neue BLE Daten, wird aus einer anderen Task aufgerufen
-{
-    memcpy(&serverData, pData, sizeof(MyBleClient::ServerData)); 
-
-    tillerMan->setServerData(serverData);
-
-    if ((serverData.MsgCounter - msgCount) > 1)
-    {
-        bleClient->sendMessage("Daten verloren !");
-        Serial.println("Daten wurden verloren !");
-    }
-    msgCount = serverData.MsgCounter;
-
-    Serial.print(serverData.MsgCounter);  
-    Serial.print(":  Cch:");
-    Serial.print(serverData.courseChange); 
-    Serial.print("  Ach:");
-    Serial.print(serverData.awsChange);
-    Serial.print("  AWA:");
-    Serial.print(serverData.AWA);
-    Serial.print("  TWA:");
-    Serial.print(serverData.TWA);
-    Serial.print("  Tck:");
-    Serial.println(serverData.tackAngle);
-
-    short MsgCounter;
-    short courseChange;
-    short awsChange;
-    short AWA; 
-    short TWA;
-    short tackAngle;
-}
-
-
 
 void onUserInput(InputParser::UserInput input)        // Callback für Unser Input, wird aus einer anderen Task aufgerufen
 {
     tillerMan->setUserInput(input);
 }
 
+void myMainTask(void *pvParameters)
+{
+    inputParser = new InputParser(bleClient, onUserInput);
+    tillerMan = new TillerMan(inputParser);
+
+    while(true)
+    {
+        delay(100);
+
+        if (bleClient->connStatus == MyBleClient::DATA_TRANSFER)
+        {
+            // Serial.printf("Heap: %d, Min: %d\n", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
+            tillerMan->mainLoop();
+            // Serial.println("TillerLoop finish");
+        }
+    }
+}
+
+void myBlinkTask(void *pvParameters)
+{
+    MyIoPort* indicatorLed  = new MyIoPort(ACTIVE_LED, OUTPUT, HIGH, LOW);  // Indicator LED
+
+    while(true)
+    {
+        delay(100);
+
+        if (bleClient->connStatus != MyBleClient::DATA_TRANSFER)
+        {
+            indicatorLed->pulse(1000);
+            delay(2000);
+        }
+        else
+        {
+            indicatorLed->pulse(250);
+            delay(500);
+        }
+    }
+}
+
+void loop()
+{  
+        // OTA in Hauptschleife, damit OTA auch funktioniert, wenn keine Verbindung besteht
+        #ifdef BOOT_WITH_OTA
+            MyOtaLoop();
+            // Serial.println("OTALoop");
+        #endif
+
+        bleClient->loop();
+        // Serial.println("BLELoop finish");
+        // Serial.printf("FIFO Info: %d Elemente vorhanden\n", ServerDataFifo::getInstance().getInfo());
+        delay(100);
+}
 
 void setup()
 {    // put your setup code here, to run once:
@@ -73,34 +93,38 @@ void setup()
     delay(500);
     Serial.begin(115200);   
 
-    // gdb_start();
-
-    // BLE muss zuerst initialisiert werden, weil debug-Ausgaben evtl. über BLE laufen
-    bleClient = new MyBleClient(onNewBleData);
-    
-    // Debug.initDebugOutput(bleClient);
-
     #ifdef BOOT_WITH_OTA
         MyOtaSetup();
+        Serial.println("OTA Setup");
     #endif
 
-    inputParser = new InputParser(bleClient, onUserInput);
-    tillerMan = new TillerMan(inputParser);
- 
+    // BLE muss zuerst initialisiert werden, weil debug-Ausgaben evtl. über BLE laufen
+    bleClient = new MyBleClient();
+    
+    serverDataFifo = new ServerDataFifo(10); // Initialisiere die FIFO Instanz mit Größe 10
+    // Debug.initDebugOutput(bleClient);
+    
+    // Starte eigene Task mit größerem Stack
+    xTaskCreatePinnedToCore(
+        myMainTask,      // Task-Funktion
+        "MainTask",      // Name
+        4096,            // Stackgröße in Bytes (Minimum: 2048)
+        NULL,            // Parameter
+        1,               // Priorität
+        NULL,            // Handle (optional)
+        0                // Core 0 oder 1
+    );
+
+        // Starte eigene Task mit größerem Stack
+    xTaskCreatePinnedToCore(
+        myBlinkTask,      // Task-Funktion
+        "BlinkTask",      // Name
+        2048,            // Stackgröße in Bytes (Minimum: 2048)
+        NULL,            // Parameter
+        1,               // Priorität
+        NULL,            // Handle (optional)
+        1                // Core 0 oder 1
+    );
+    
 }
 
-void loop()
-{  
-    #ifdef BOOT_WITH_OTA
-        MyOtaLoop();
-    #endif
-
-    delay(100);
-
-    bleClient->loop();
-
-    if (bleClient->connStatus == MyBleClient::DATA_TRANSFER)
-    {
-        tillerMan->mainLoop();
-    }
-}

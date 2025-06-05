@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include "UI/InputParser.h"
+#include "BLE/ServerDataFifo.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
 
@@ -60,8 +61,9 @@ public:
     
 private:
 
-    MyBleClient::ServerData mServerData;
-    bool ServerDataReceived = false;
+    ServerData mServerData;
+    bool ServerDataReceived;
+    bool ReceivedSomething;
     InputParser::UserInput mUserInput;
     bool userInputFlag = false;
 
@@ -69,8 +71,7 @@ private:
     void sendDataToBLE();
     void manageUserInputStandby(InputParser::UserInput input);
     void manageUserInputActive(InputParser::UserInput input);
-    void manageServerData(MyBleClient::ServerData data);
-    void manageServerCmd(MyBleClient::ServerData serverData);
+    void manageServerData(ServerData data);
     void loopStart();
     void loopEnd();
     short angleAdd(short origin, short adder);
