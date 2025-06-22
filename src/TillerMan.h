@@ -9,15 +9,24 @@
 
 class TillerMan {
 public:
-        enum ControlStatus {
+        enum ControlStatus : uint8_t {
         READY,
         SERVER_CMD, 
         HOLD_AWA,
         TACK_START_KEYS_SB,
         TACK_START_KEYS_BB,
         TACK_START_CENTRAL,
-
         TURN_WAIT
+    };
+
+    String ControlStatusNames[7] = {
+        "READY",
+        "SERVER_CMD", 
+        "HOLD_AWA",
+        "TACK_START_KEYS_SB",
+        "TACK_START_KEYS_BB",
+        "TACK_START_CENTRAL",
+        "TURN_WAIT"
     };
 
     struct __attribute__((packed)) OpMode {
@@ -33,6 +42,7 @@ public:
         short           AWAsoll;
         short           AWAdelta; 
         short           AWAmove;
+        ControlStatus   controlStatus;
     };
 
     struct CorrectParams {

@@ -178,17 +178,19 @@ void TillerMan::loopEnd()
 }
 
 void TillerMan::manageServerData(ServerData serverData)
-{
 
+{
     // Serial.printf("Heap: %d, Min: %d\n", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
 
         //    Serial.print("ServerCMD:  CCR:");
         //    Serial.print(serverData.courseChange);  
         //    Serial.print(":  AWS:");
         //    Serial.println(serverData.AWAsoll); 
-
+    inputParser->mBleClient->sendMessage(ControlStatusNames[mainControlStatus] );
+    
     switch (mainControlStatus) 
     {
+
         case READY:
         {
             // do nothing
@@ -204,10 +206,12 @@ void TillerMan::manageServerData(ServerData serverData)
             tillerMgmt.courseChange = serverData.courseChange;
             // inputParser->mBleClient->sendMessage("ServerCMD");
             correctActive(serverData.courseChange, serverData.AWAsoll);
-            if (tillerMgmt.OperationMode.StdbyActive == true)
+            if (tillerMgmt.OperationMode.StdbyActive == true) {
                 mainControlStatus = TURN_WAIT;
-            else
+            }
+            else {
                 mainControlStatus = READY;  // auf neue Anweisungen warten
+            }
             break;
         }
         case HOLD_AWA:
@@ -299,6 +303,7 @@ void TillerMan::manageServerData(ServerData serverData)
                 correctActive(tillerMgmt.courseCorr, 5000);               // 90 Grad statt 100
             }
             mainControlStatus = TURN_WAIT;
+
             break;
         }
         case TACK_START_CENTRAL:
@@ -329,26 +334,27 @@ void TillerMan::manageServerData(ServerData serverData)
         {
             Serial.println("Unbekannter Status");
             mainControlStatus = READY;  // auf neue Anweisungen warten
+            inputParser->mBleClient->sendMessage("Stat: UNKNOWN->READY"); 
             break;
         }
+        tillerMgmt.controlStatus = mainControlStatus; // Status an TillerMgmt übergeben
     }
-
-
 }
 
 void TillerMan::correctActive(int16_t angle, uint16_t waitmillis)
- {
-        // Parameterstruktur dynamisch allozieren
-        CorrectParams *params = (CorrectParams *) malloc(sizeof(CorrectParams));
-        if (params == NULL) {
-            Serial.println("Speicherzuweisung fehlgeschlagen!");
-            return;
-        }
-        
-        // Werte setzen
-        params->inputParser = inputParser;
-        params->angle = angle;
-        params->waitmillis = waitmillis;
+{
+    tillerMgmt.courseChange = angle; // Kursänderung setzen
+    // Parameterstruktur dynamisch allozieren
+    CorrectParams *params = (CorrectParams *) malloc(sizeof(CorrectParams));
+    if (params == NULL) {
+        Serial.println("Speicherzuweisung fehlgeschlagen!");
+        return;
+    }
+    
+    // Werte setzen
+    params->inputParser = inputParser;
+    params->angle = angle;
+    params->waitmillis = waitmillis;
     
     // Task erstellen
     xTaskCreatePinnedToCore(
