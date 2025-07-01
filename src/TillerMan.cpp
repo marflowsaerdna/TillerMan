@@ -160,7 +160,7 @@ void TillerMan::loopStart()
         zwischenErgebnis -= 360;
     tillerMgmt.AWAmove   =  zwischenErgebnis; 
     // Differenz zwischen Soll und Ist
-    zwischenErgebnis = (mServerData.AWA - tillerMgmt.AWAsoll  + 360) % 360;
+    zwischenErgebnis = ( tillerMgmt.AWAsoll - mServerData.AWA -  + 360) % 360;
     if (zwischenErgebnis > 180)
         zwischenErgebnis -= 360;
     tillerMgmt.AWAdelta   =  zwischenErgebnis; 
@@ -217,14 +217,9 @@ void TillerMan::manageServerData(ServerData serverData)
         case HOLD_AWA:
         {
             Serial.println("HOLD_AWA");
-            if (tillerMgmt.AWAdelta < 0)
+            if (tillerMgmt.AWAdelta != 0)
             {
-                correctActive(1, 0);
-                mainControlStatus = TURN_WAIT;
-            }
-            if (tillerMgmt.AWAdelta > 0)
-            {
-                correctActive(-1, 0);
+                correctActive(-tillerMgmt.AWAdelta, 0);
                 mainControlStatus = TURN_WAIT;
             }
             if (tillerMgmt.AWAdelta == 0)
