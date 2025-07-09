@@ -88,7 +88,7 @@ private:
     ControlStatus mainControlStatus = READY;
     
 
-    volatile short AWAalt, AWAdeltaAlt, AWAimpact;
+    short AWAalt, AWAdeltaAlt, AWAimpact;
     volatile bool scenarioActive = false;
 
     

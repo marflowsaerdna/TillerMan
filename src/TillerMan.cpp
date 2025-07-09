@@ -155,12 +155,13 @@ void TillerMan::loopStart()
     // Variablen zum Jonglieren berechnen
     short zwischenErgebnis;
     // Änderung seit dem letzten Durchlauf
-    zwischenErgebnis = (AWAalt - mServerData.AWA + 360) % 360;     
-    if (zwischenErgebnis > 180)
-        zwischenErgebnis -= 360;
+    zwischenErgebnis = AWAalt - mServerData.AWA;     
+    // if (zwischenErgebnis > 180)
+    //    zwischenErgebnis -= 360;
     tillerMgmt.AWAmove   =  zwischenErgebnis; 
+    // Serial.printf("AWAmove: %d\n", tillerMgmt.AWAmove);
     // Differenz zwischen Soll und Ist
-    zwischenErgebnis = ( tillerMgmt.AWAsoll - mServerData.AWA -  + 360) % 360;
+    zwischenErgebnis = tillerMgmt.AWAsoll - mServerData.AWA;
     if (zwischenErgebnis > 180)
         zwischenErgebnis -= 360;
     tillerMgmt.AWAdelta   =  zwischenErgebnis; 
@@ -186,6 +187,7 @@ void TillerMan::manageServerData(ServerData serverData)
         //    Serial.print(serverData.courseChange);  
         //    Serial.print(":  AWS:");
         //    Serial.println(serverData.AWAsoll); 
+    tillerMgmt.controlStatus = mainControlStatus;
     inputParser->mBleClient->sendMessage(ControlStatusNames[mainControlStatus] );
     
     switch (mainControlStatus) 
@@ -204,6 +206,7 @@ void TillerMan::manageServerData(ServerData serverData)
             Serial.println(serverData.AWAsoll); 
             tillerMgmt.AWAsoll = serverData.AWAsoll;
             tillerMgmt.courseChange = serverData.courseChange;
+            tillerMgmt.AWAdelta =  AWAalt - serverData.AWAsoll; // Differenz zwischen AWA und AWAsoll
             // inputParser->mBleClient->sendMessage("ServerCMD");
             correctActive(serverData.courseChange, serverData.AWAsoll);
             if (tillerMgmt.OperationMode.StdbyActive == true) {
@@ -307,17 +310,6 @@ void TillerMan::manageServerData(ServerData serverData)
         }
         case TURN_WAIT:
         {
-            Serial.println("TURN_WAIT");
-            if (abs(AWAdeltaAlt - tillerMgmt.AWAdelta) < 0)
-            {
-                Serial.println("Entfernung");
-                mainControlStatus = HOLD_AWA;
-            }
-            if (abs(AWAdeltaAlt - tillerMgmt.AWAdelta) > 0)
-            {
-                Serial.println("Annäherung");
-                // mainControlStatus = HOLD_AWA;                             // Status bleibt, weiter warten
-            }
             if (abs(tillerMgmt.AWAdelta) < 3)                                // Winkel hat sich eingespielt
             {
                 Serial.println("Winkel erreicht");
