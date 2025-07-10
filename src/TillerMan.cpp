@@ -98,10 +98,11 @@ void TillerMan::setUserInput(InputParser::UserInput userInput)
 
 void TillerMan::mainLoop()
 {   
+    ServerDataReceived = ServerDataFifo::getInstance().getAsStruct(mServerData); // Hole die Serverdaten aus der FIFO
 
     loopStart(); 
     // ServerData serverData;
-    ServerDataReceived = ServerDataFifo::getInstance().getAsStruct(mServerData); // Hole die Serverdaten aus der FIFO
+
 
     if (ServerDataReceived == true)     // nur wenn TillerMan eingeschaltet ist
     {   
