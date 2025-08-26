@@ -209,7 +209,7 @@ void TillerMan::manageServerData(ServerData serverData)
             tillerMgmt.courseChange = serverData.courseChange;
             tillerMgmt.AWAdelta =  AWAalt - serverData.AWAsoll; // Differenz zwischen AWA und AWAsoll
             // inputParser->mBleClient->sendMessage("ServerCMD");
-            correctActive(serverData.courseChange, serverData.AWAsoll);
+            correctActive(serverData.courseChange, 0);
             if (tillerMgmt.OperationMode.StdbyActive == true) {
                 mainControlStatus = TURN_WAIT;
             }
@@ -221,7 +221,7 @@ void TillerMan::manageServerData(ServerData serverData)
         case HOLD_AWA:
         {
             Serial.println("HOLD_AWA");
-            if (tillerMgmt.AWAdelta != 0)
+            if (abs(tillerMgmt.AWAdelta) > 2)
             {
                 correctActive(-tillerMgmt.AWAdelta, 0);
                 mainControlStatus = TURN_WAIT;
@@ -311,10 +311,14 @@ void TillerMan::manageServerData(ServerData serverData)
         }
         case TURN_WAIT:
         {
-            if (abs(tillerMgmt.AWAdelta) < 3)                                // Winkel hat sich eingespielt
+            if (abs(tillerMgmt.AWAdelta) <= 5)                                // Winkel hat sich eingespielt
             {
                 Serial.println("Winkel erreicht");
                 mainControlStatus = HOLD_AWA;
+            }
+            if((tillerMgmt.AWAmove == 0) && (abs(tillerMgmt.AWAdelta) > 5))
+            {
+                correctActive(-tillerMgmt.AWAdelta/2, 0);
             }
             break;
         }
